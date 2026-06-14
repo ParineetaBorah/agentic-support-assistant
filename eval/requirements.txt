@@ -1,0 +1,12 @@
+# Isolated environment for the eval CLI (eval/run_eval.py) and RAGAS grounding
+# scoring. Kept separate from api/requirements.txt so ragas' langchain pins do
+# not conflict with the running agent's langgraph/langchain stack, and so ragas
+# never lands in the api Docker image.
+#   python -m venv eval/.venv
+#   eval/.venv/bin/pip install -r eval/requirements.txt
+httpx>=0.27
+python-dotenv
+psycopg2-binary
+ragas==0.1.21
+datasets
+langchain-openai

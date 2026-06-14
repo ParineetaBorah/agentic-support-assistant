@@ -13,9 +13,10 @@ class EvalTestCase(BaseModel):
     id: str
     question: str
     user: Literal["alice", "bob", "carol"]
-    expected_tools: list[str]
+    expected_tool_sequence: list[str]
     expected_grounded: bool
     expected_outcome: Literal["success", "guardrail_blocked", "propose_then_confirm"]
+    judge_reasonableness: bool = False
 
 
 class EvalResult(BaseModel):
@@ -24,11 +25,14 @@ class EvalResult(BaseModel):
     id: str
     question: str
     user: str
-    expected_tools: list[str]
+    conversation_id: str
+    expected_tool_sequence: list[str]
     actual_tools_called: list[str]
+    trajectory_pass: bool
     expected_grounded: bool
     grounded: bool
     expected_outcome: Literal["success", "guardrail_blocked", "propose_then_confirm"]
+    judge_reasonableness: bool = False
     response_text: str
     duration_ms: float
     cost_usd: float

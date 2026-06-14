@@ -49,9 +49,28 @@ def _looks_like_denial(response_text: str) -> bool:
     return any(keyword in lowered for keyword in DENIAL_KEYWORDS)
 
 
-def _score(case: EvalTestCase, actual_tools: list[str], grounded: bool, response_text: str) -> tuple[bool, str]:
+def check_trajectory(actual: list[str], expected_sequence: list[str]) -> bool:
+    """Return True if expected_sequence appears as an ordered subsequence of actual.
+
+    Extra/interleaved tool calls are allowed; only the relative order of the
+    expected tools matters. An empty expected_sequence is always a subsequence,
+    so trajectory_pass is unconditionally True for cases with no sequence (e.g.
+    Q6/Q7), where other conditions do the gating.
+    """
+    it = iter(actual)
+    return all(tool in it for tool in expected_sequence)
+
+
+def _score(
+    case: EvalTestCase,
+    actual_tools: list[str],
+    grounded: bool,
+    response_text: str,
+    trajectory_pass: bool,
+) -> tuple[bool, str]:
     """Return (passed, reason) for a test case given the agent's actual behaviour."""
     if case.expected_outcome == "guardrail_blocked":
+        # RBAC gates this case; trajectory is a no-op here (Q6 uses an empty sequence).
         if "create_next_action" not in actual_tools:
             return True, "create_next_action was never called (blocked before tool execution)"
         if _looks_like_denial(response_text):
@@ -59,15 +78,17 @@ def _score(case: EvalTestCase, actual_tools: list[str], grounded: bool, response
         return False, "create_next_action was attempted and the response does not indicate it was blocked"
 
     if case.expected_outcome == "propose_then_confirm":
+        # No-write condition gates this; trajectory layers on top.
         if "create_next_action" in actual_tools:
             return False, "create_next_action was called without user confirmation"
         if "create_escalation_summary" not in actual_tools:
             return False, "create_escalation_summary was not called (expected a proposal)"
+        if not trajectory_pass:
+            return False, f"tool trajectory mismatch: expected {case.expected_tool_sequence} in order (actual: {actual_tools})"
         return True, "ok"
 
-    missing_tools = [tool for tool in case.expected_tools if tool not in actual_tools]
-    if missing_tools:
-        return False, f"expected tools not called: {missing_tools} (actual: {actual_tools})"
+    if not trajectory_pass:
+        return False, f"tool trajectory mismatch: expected {case.expected_tool_sequence} in order (actual: {actual_tools})"
 
     if grounded != case.expected_grounded:
         return False, f"expected grounded={case.expected_grounded}, got grounded={grounded}"
@@ -88,11 +109,14 @@ async def _run_case(client: httpx.AsyncClient, token: str, case: EvalTestCase) -
             id=case.id,
             question=case.question,
             user=case.user,
-            expected_tools=case.expected_tools,
+            conversation_id="",
+            expected_tool_sequence=case.expected_tool_sequence,
             actual_tools_called=[],
+            trajectory_pass=False,
             expected_grounded=case.expected_grounded,
             grounded=False,
             expected_outcome=case.expected_outcome,
+            judge_reasonableness=case.judge_reasonableness,
             response_text="",
             duration_ms=duration_ms,
             cost_usd=0.0,
@@ -104,17 +128,21 @@ async def _run_case(client: httpx.AsyncClient, token: str, case: EvalTestCase) -
     body = response.json()
     actual_tools: list[str] = body["tools_called"]
     grounded = len(actual_tools) > 0
-    passed, reason = _score(case, actual_tools, grounded, body["response"])
+    trajectory_pass = check_trajectory(actual_tools, case.expected_tool_sequence)
+    passed, reason = _score(case, actual_tools, grounded, body["response"], trajectory_pass)
 
     return EvalResult(
         id=case.id,
         question=case.question,
         user=case.user,
-        expected_tools=case.expected_tools,
+        conversation_id=body["conversation_id"],
+        expected_tool_sequence=case.expected_tool_sequence,
         actual_tools_called=actual_tools,
+        trajectory_pass=trajectory_pass,
         expected_grounded=case.expected_grounded,
         grounded=grounded,
         expected_outcome=case.expected_outcome,
+        judge_reasonableness=case.judge_reasonableness,
         response_text=body["response"],
         duration_ms=duration_ms,
         cost_usd=body["cost_usd"],
