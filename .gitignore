@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.venv/
+*.egg
+
+# Environment
+.env
+*.env.local
+
+# Virtual environments
+api/.venv/
+mcp_server/.venv/
+
+# Alembic local state (versions are committed, but local cache is not)
+*.pyc
+
+# Node / UI
+ui/node_modules/
+ui/dist/
+ui/tsconfig.tsbuildinfo
+ui/tsconfig.node.tsbuildinfo
+ui/vite.config.d.ts
+
+# IDE / Editor
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Claude Code local settings (keep CLAUDE.md, ignore local overrides)
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
+
+# Eval results (generated, not source)
+eval/results.json
+
+# Docker
+*.log

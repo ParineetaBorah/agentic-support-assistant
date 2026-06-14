@@ -1,0 +1,31 @@
+# LiteLLM is configured as a stateless gateway only.
+# Usage tracking (cost, tokens) is captured by the
+# application on conversation_turns table via the agent.
+# Do NOT add database_url here.
+
+model_list:
+  - model_name: gpt-4o-mini
+    litellm_params:
+      model: openai/gpt-4o-mini
+      api_key: os.environ/OPENAI_API_KEY
+
+  - model_name: gpt-4o
+    litellm_params:
+      model: openai/gpt-4o
+      api_key: os.environ/OPENAI_API_KEY
+
+  - model_name: claude-sonnet-4
+    litellm_params:
+      model: anthropic/claude-sonnet-4-5
+      api_key: os.environ/ANTHROPIC_API_KEY
+
+litellm_settings:
+  drop_params: true
+  set_verbose: false
+  json_logs: true
+
+general_settings:
+  master_key: sk-acme-master-key
+  # Without database_url, litellm's 2nd+ request fails auth with
+  # "No connected db." unless this is set.
+  allow_requests_on_db_unavailable: true
