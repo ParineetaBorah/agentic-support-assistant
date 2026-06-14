@@ -96,33 +96,30 @@ def _release_conn(conn: PGConnection) -> None:
     _pool.putconn(conn)
 
 
+_CUSTOMER_SELECT = (
+    "SELECT c.id, c.name, c.tier, c.industry, u.username "
+    "FROM customers c JOIN users u ON u.id = c.account_manager"
+)
+
+
 def _query_customer_exact(conn: PGConnection, customer_name: str) -> tuple | None:
-    """Return (id, name, tier, industry, account_manager) for an exact case-insensitive match, or None."""
+    """Return (id, name, tier, industry, account_manager_name) for an exact case-insensitive match, or None."""
     with conn.cursor() as cur:
-        cur.execute(
-            "SELECT id, name, tier, industry, account_manager FROM customers WHERE LOWER(name) = LOWER(%s)",
-            (customer_name,),
-        )
+        cur.execute(f"{_CUSTOMER_SELECT} WHERE LOWER(c.name) = LOWER(%s)", (customer_name,))
         return cur.fetchone()
 
 
 def _query_customers_by_prefix(conn: PGConnection, customer_name: str) -> list[tuple]:
     """Return all rows whose name starts with customer_name (case-insensitive)."""
     with conn.cursor() as cur:
-        cur.execute(
-            "SELECT id, name, tier, industry, account_manager FROM customers WHERE name ILIKE %s",
-            (f"{customer_name}%",),
-        )
+        cur.execute(f"{_CUSTOMER_SELECT} WHERE c.name ILIKE %s", (f"{customer_name}%",))
         return cur.fetchall()
 
 
 def _query_customer_by_id(conn: PGConnection, customer_id: str) -> tuple | None:
-    """Return (id, name, tier, industry, account_manager) for a customer, or None."""
+    """Return (id, name, tier, industry, account_manager_name) for a customer, or None."""
     with conn.cursor() as cur:
-        cur.execute(
-            "SELECT id, name, tier, industry, account_manager FROM customers WHERE id = %s",
-            (customer_id,),
-        )
+        cur.execute(f"{_CUSTOMER_SELECT} WHERE c.id = %s", (customer_id,))
         return cur.fetchone()
 
 
