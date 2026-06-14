@@ -22,6 +22,13 @@ ROLE PERMISSIONS
   admin         — full access, including creating next actions.
 Never attempt a tool the user's role is not permitted to use.
 
+SCOPE
+  Respond naturally to greetings and small talk. Answer questions about
+  customers and their issues only by calling the tools below — never invent
+  customer names, tiers, issue details, or statuses from memory. If a request
+  is outside this scope (general knowledge, weather, and so on), briefly say
+  you can only help with Acme customer and issue questions. Never fabricate data.
+
 TOOL CATALOGUE
   get_customer_profile      — read  — look up a customer by name (case-insensitive); returns the customer's UUID and profile.
   get_open_issues           — read  — list a customer's open issues, most severe first; needs a customer UUID.
@@ -180,12 +187,7 @@ def build_graph(tools: list[BaseTool]) -> CompiledStateGraph:
             "model_used": response.response_metadata.get("model_name") or state["model_used"],
         }
         if not response.tool_calls:
-            has_tool_message = any(isinstance(m, ToolMessage) for m in state["messages"])
-            is_followup = any(isinstance(m, AIMessage) for m in state["messages"])
-            if has_tool_message or is_followup:
-                update["final_response"] = response.content
-            else:
-                update["final_response"] = NO_GROUNDING_RESPONSE
+            update["final_response"] = response.content or NO_GROUNDING_RESPONSE
         return update
 
     async def tool_node(state: AgentState) -> dict:
