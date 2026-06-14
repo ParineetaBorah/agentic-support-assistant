@@ -25,6 +25,14 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/chat/:conversationId"
+          element={
+            <ProtectedRoute>
+              <Chat />
+            </ProtectedRoute>
+          }
+        />
       </Routes>
     </BrowserRouter>
   );

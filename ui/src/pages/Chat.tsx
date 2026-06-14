@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { getConversationHistory, listConversations, streamMessage } from "../api/chat";
 import type { ConversationSummary, User } from "../types";
 
@@ -10,8 +10,6 @@ interface DisplayMessage {
   toolsCalled?: string[];
   riskLevel?: string;
 }
-
-const ACTIVE_CONVERSATION_KEY = "acme_active_conversation_id";
 
 const RISK_LEVEL_PATTERN = /risk level:?\*{0,2}\s*\*{0,2}\s*(critical|high|medium|low)/i;
 
@@ -48,21 +46,37 @@ export default function Chat() {
   const [messages, setMessages] = useState<DisplayMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [conversationId, setConversationId] = useState<string | undefined>(undefined);
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [streamingStatus, setStreamingStatus] = useState<string | undefined>(undefined);
+  const { conversationId } = useParams<{ conversationId?: string }>();
   const navigate = useNavigate();
   const user = loadUser();
   const bottomRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const loadedConversationRef = useRef<string | undefined>(undefined);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
 
   useEffect(() => {
-    void initSidebar();
+    void refreshConversations().catch(() => undefined);
   }, []);
+
+  useEffect(() => {
+    // The URL is the source of truth for the active conversation. Load its
+    // history whenever the param changes — unless it's the conversation already
+    // on screen (e.g. one we just created), which would wipe the streamed turns.
+    if (conversationId === loadedConversationRef.current) {
+      return;
+    }
+    loadedConversationRef.current = conversationId;
+    if (!conversationId) {
+      setMessages([]);
+      return;
+    }
+    void loadHistory(conversationId);
+  }, [conversationId]);
 
   useEffect(() => {
     return () => {
@@ -76,18 +90,7 @@ export default function Chat() {
     return summaries;
   }
 
-  async function initSidebar() {
-    const summaries = await refreshConversations().catch(() => []);
-    const storedId = localStorage.getItem(ACTIVE_CONVERSATION_KEY);
-    if (storedId && summaries.some((conversation) => conversation.id === storedId)) {
-      await openConversation(storedId);
-    }
-  }
-
-  async function openConversation(id: string) {
-    if (loading) {
-      return;
-    }
+  async function loadHistory(id: string) {
     try {
       const history = await getConversationHistory(id);
       setMessages(
@@ -97,26 +100,28 @@ export default function Chat() {
           riskLevel: turn.role === "assistant" ? extractRiskLevel(turn.content) : undefined,
         }))
       );
-      setConversationId(id);
-      localStorage.setItem(ACTIVE_CONVERSATION_KEY, id);
     } catch {
       setMessages([]);
     }
+  }
+
+  function openConversation(id: string) {
+    if (loading) {
+      return;
+    }
+    navigate(`/chat/${id}`);
   }
 
   function handleNewConversation() {
     if (loading) {
       return;
     }
-    setConversationId(undefined);
-    setMessages([]);
-    localStorage.removeItem(ACTIVE_CONVERSATION_KEY);
+    navigate("/chat");
   }
 
   function handleLogout() {
     localStorage.removeItem("acme_token");
     localStorage.removeItem("acme_user");
-    localStorage.removeItem(ACTIVE_CONVERSATION_KEY);
     navigate("/login");
   }
 
@@ -158,13 +163,17 @@ export default function Chat() {
             updateLastMessage((message) => ({ ...message, content: message.content + content }));
           },
           onDone: (response) => {
-            setConversationId(response.conversation_id);
-            localStorage.setItem(ACTIVE_CONVERSATION_KEY, response.conversation_id);
             updateLastMessage({
               content: response.response,
               toolsCalled: response.tools_called,
               riskLevel: extractRiskLevel(response.response),
             });
+            if (conversationId !== response.conversation_id) {
+              // New conversation: mark it as already loaded so the URL effect
+              // won't refetch and wipe the streamed turns, then put it in the URL.
+              loadedConversationRef.current = response.conversation_id;
+              navigate(`/chat/${response.conversation_id}`);
+            }
           },
           onError: () => {
             updateLastMessage({ content: "Something went wrong reaching the agent. Please try again." });
