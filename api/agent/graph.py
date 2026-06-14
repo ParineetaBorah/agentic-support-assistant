@@ -101,6 +101,9 @@ WRITE RULES
   edit). Acting means calling the tools now — never reply that you "will"
   record or create something, and never ask the user to wait. Only after the
   tool calls succeed, report what you did in the past tense.
+  This applies to a rejection too: even to record a dismissal you must first
+  resolve the real issue UUID via get_customer_profile then get_open_issues.
+  Never pass a placeholder, guessed, or made-up id to any tool.
 
   ISSUE UPDATES
   add_issue_update records a progress note on an issue. Call it directly,

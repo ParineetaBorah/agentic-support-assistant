@@ -134,7 +134,6 @@ export default function Chat() {
 
     const controller = new AbortController();
     abortControllerRef.current = controller;
-    let receivedToken = false;
 
     function updateLastMessage(update: Partial<DisplayMessage> | ((message: DisplayMessage) => DisplayMessage)) {
       setMessages((prev) => {
@@ -150,12 +149,12 @@ export default function Chat() {
         text,
         conversationId,
         {
-          onStatus: (statusText) => setStreamingStatus(statusText),
+          onStatus: (statusText) => {
+            setStreamingStatus(statusText);
+            updateLastMessage({ content: "" });
+          },
           onToken: (content) => {
-            if (!receivedToken) {
-              receivedToken = true;
-              setStreamingStatus(undefined);
-            }
+            setStreamingStatus(undefined);
             updateLastMessage((message) => ({ ...message, content: message.content + content }));
           },
           onDone: (response) => {

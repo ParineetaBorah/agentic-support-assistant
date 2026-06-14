@@ -452,6 +452,7 @@ def create_next_action(
 ) -> NextActionCreated:
     """Record a recommended next action for an issue. Admins only. At most one action per issue per conversation."""
     _check_role(user_role, ADMIN_ONLY, "create_next_action")
+    risk_level = risk_level.strip().lower()
     CreateNextActionInput(
         issue_id=issue_id,
         recommendation_text=recommendation_text,
@@ -517,6 +518,7 @@ def record_recommendation(
     the next action is resolved automatically.
     """
     _check_role(user_role, SUPPORT_AND_ADMIN, "record_recommendation")
+    risk_level = risk_level.strip().lower()
     RecordRecommendationInput(
         issue_id=issue_id,
         recommended_text=recommended_text,

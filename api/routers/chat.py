@@ -34,7 +34,13 @@ TOOL_STATUS_MESSAGES = {
     "get_issue_detail": "Pulling up issue details...",
     "create_next_action": "Recording the next action...",
     "create_escalation_summary": "Preparing an escalation summary...",
+    "add_issue_update": "Logging the issue update...",
+    "record_recommendation": "Recording the recommendation outcome...",
 }
+
+# Caps the agent's reason/act loop (each tool call is ~2 steps). Bounds runaway
+# retries on repeated tool failures; well above any legitimate multi-tool flow.
+AGENT_RECURSION_LIMIT = 18
 
 
 def _history_to_message(turn: dict) -> BaseMessage:
@@ -159,7 +165,7 @@ async def post_chat(
 
     async with get_mcp_tools() as tools:
         graph = build_graph(tools)
-        result = await graph.ainvoke(initial_state)
+        result = await graph.ainvoke(initial_state, config={"recursion_limit": AGENT_RECURSION_LIMIT})
 
     new_messages = result["messages"][len(initial_state["messages"]):]
 
@@ -197,7 +203,11 @@ async def post_chat_stream(
         try:
             async with get_mcp_tools() as tools:
                 graph = build_graph(tools)
-                async for mode, chunk in graph.astream(initial_state, stream_mode=["updates", "messages"]):
+                async for mode, chunk in graph.astream(
+                    initial_state,
+                    stream_mode=["updates", "messages"],
+                    config={"recursion_limit": AGENT_RECURSION_LIMIT},
+                ):
                     if mode == "messages":
                         message_chunk, chunk_metadata = chunk
                         if chunk_metadata.get("langgraph_node") == "agent" and message_chunk.content:
