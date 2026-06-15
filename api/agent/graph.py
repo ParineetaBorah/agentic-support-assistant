@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import httpx
+import structlog
 from langchain_core.messages import AIMessage, SystemMessage, ToolMessage
 from langchain_core.tools import BaseTool
 from langchain_openai import ChatOpenAI
@@ -12,6 +13,8 @@ from langgraph.graph.state import CompiledStateGraph
 from agent.errors import parse_tool_error
 from core.config import settings
 from models.agent import AgentState, ToolErrorPayload
+
+logger = structlog.get_logger()
 
 SYSTEM_PROMPT_TEMPLATE = """You are an enterprise support assistant for Acme Operations.
 The current user has role: {user_role}.
@@ -211,6 +214,14 @@ def build_graph(tools: list[BaseTool]) -> CompiledStateGraph:
             if result.status == "error":
                 payload = parse_tool_error(result.content)
                 if payload is not None:
+                    logger.warning(
+                        "tool_error",
+                        tool_name=tool_call["name"],
+                        error_type=payload.error_type,
+                        error_detail=payload.detail,
+                        conversation_id=state["conversation_id"],
+                        user_id=state["user_id"],
+                    )
                     result = ToolMessage(
                         content=_format_tool_error(payload),
                         tool_call_id=result.tool_call_id,

@@ -105,9 +105,21 @@ python tests/test_mcp.py
 
 ## Eval
 
+Run it in Docker — **no host Python or venv needed** (just `docker compose up` first):
+
 ```bash
-python eval/run_eval.py
+# fast: trajectory only (~1 min, no judge calls)
+docker compose run --rm eval
+
+# full: trajectory + grounding + reasonableness (judge-LLM calls, slower)
+docker compose run --rm -e RAGAS_ENABLED=true eval
+
+# full, with the cross-family judge (needs a valid ANTHROPIC_API_KEY)
+docker compose run --rm -e RAGAS_ENABLED=true -e EVAL_JUDGE_MODEL=claude-sonnet-4 eval
 ```
+
+Results print as a `Q# | Status | Trajectory | Faithful | Reasonable | …` table and
+are written to `eval/results.json` (with the judge's per-case rationale).
 
 The harness scores each case on three dimensions:
 
@@ -124,9 +136,11 @@ The harness scores each case on three dimensions:
   recommendation cases (Q5's recorded action, Q9's escalation proposal). Not
   applied to issue-update logging (e.g. Q10), which is not a recommendation.
 
-Both judge-based dimensions are **optional and off by default** (so dev runs
-stay fast) and run in an **isolated venv** so the judge stack never touches the
-app:
+Both judge-based dimensions are **optional and off by default** (`RAGAS_ENABLED`,
+so dev runs stay fast). The eval runs in its own container/venv so the judge
+stack (ragas + langchain) never touches the app's langgraph stack.
+
+Running it locally without Docker (for development) instead:
 
 ```bash
 python -m venv eval/.venv && eval/.venv/bin/pip install -r eval/requirements.txt

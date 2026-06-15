@@ -128,5 +128,35 @@ services:
       - api
     restart: unless-stopped
 
+  # One-off eval runner — no host Python/venv needed. Not started by
+  # `docker compose up` (gated behind the "eval" profile). Run with:
+  #   docker compose run --rm eval                      # fast: trajectory only
+  #   docker compose run --rm -e RAGAS_ENABLED=true eval  # full: + grounding + reasonableness
+  eval:
+    build: ./eval
+    profiles: ["eval"]
+    depends_on:
+      api:
+        condition: service_started
+      keycloak:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      litellm:
+        condition: service_started
+    environment:
+      API_URL: http://api:8000
+      KEYCLOAK_URL: http://keycloak:8080
+      KEYCLOAK_REALM: acme
+      KEYCLOAK_CLIENT_ID: acme-api
+      KEYCLOAK_CLIENT_SECRET: acme-api-secret
+      POSTGRES_URL: postgresql://postgres:postgres@postgres:5432/acme
+      LITELLM_URL: http://litellm:4000
+      LITELLM_API_KEY: ${LITELLM_API_KEY}
+      EVAL_JUDGE_MODEL: ${EVAL_JUDGE_MODEL:-gpt-4o}
+      RAGAS_ENABLED: ${RAGAS_ENABLED:-false}
+    volumes:
+      - ./eval:/app
+
 volumes:
   postgres_data:
