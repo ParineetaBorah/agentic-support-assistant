@@ -53,7 +53,26 @@ This runs migrations and seeds dev data automatically via the `migrate` service.
 
 **3. Open the UI**
 
-Visit `http://localhost:3000`. Log in with a Keycloak user from `infra/keycloak/acme-realm.json`.
+Visit `http://localhost:3000` and log in with one of the test users below.
+
+## Try it
+
+**Test users**
+
+| Username | Password    | Role           | Can do                                      |
+|----------|-------------|----------------|---------------------------------------------|
+| alice    | password123 | `sales_user`   | Read customers and issues                   |
+| bob      | password123 | `support_user` | Read + write escalation summaries & updates |
+| carol    | password123 | `admin`        | All of the above + create next actions      |
+
+![UI screenshot](docs/screenshot.png)
+
+**Sample queries to try**
+
+- `What are Globex's open issues?`
+- `Give me the full details of Globex's critical issue`
+- `Summarise the escalation risk for Globex`
+- `Create a next action for Globex's critical issue: escalate to CTO within 1 hour` _(log in as carol)_
 
 ## Agent roles
 

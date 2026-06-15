@@ -330,27 +330,15 @@ export default function Chat() {
                         message.content && <p className="whitespace-pre-wrap">{message.content}</p>
                       )}
 
-                      {message.role === "assistant" &&
-                        message.content &&
-                        ((message.toolsCalled && message.toolsCalled.length > 0) || message.riskLevel) && (
+                      {message.role === "assistant" && message.content && message.riskLevel && (
                           <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                            {message.toolsCalled?.map((tool, toolIndex) => (
-                              <span
-                                key={toolIndex}
-                                className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600"
-                              >
-                                {tool}
-                              </span>
-                            ))}
-                            {message.riskLevel && (
-                              <span
-                                className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                                  RISK_BADGE_STYLES[message.riskLevel] ?? "bg-gray-100 text-gray-600"
-                                }`}
-                              >
-                                Risk: {message.riskLevel}
-                              </span>
-                            )}
+                            <span
+                              className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                                RISK_BADGE_STYLES[message.riskLevel] ?? "bg-gray-100 text-gray-600"
+                              }`}
+                            >
+                              Risk: {message.riskLevel}
+                            </span>
                           </div>
                         )}
                     </div>

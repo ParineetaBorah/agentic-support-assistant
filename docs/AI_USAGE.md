@@ -22,7 +22,7 @@ A brief account of how AI tools were used during the development of this project
 - **Resilience and observability strategy**: which patterns to apply (idempotent writes, timeouts, retries) and which to defer (circuit breakers, MCP retry) and why.
 
 ### Reviewed line-by-line, never blindly accepted
-- All authentication and authorization code: JWT validation, JWKS caching, RBAC role checks. Security-critical, so I read and understood every line.
+- All authentication and authorization code: JWT validation, RBAC role checks. Security-critical, so I read and understood every line.
 - The duplicate-write fix: I reviewed why `parallel_tool_calls=False` and the database idempotency constraint were both needed, and how they interact.
 - Any code touching the database write path.
 
