@@ -24,9 +24,6 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 POSTGRES_URL = os.environ.get("POSTGRES_URL", "postgresql://postgres:postgres@localhost:5432/acme")
 LITELLM_URL = os.environ.get("LITELLM_URL", "http://localhost:4000")
 LITELLM_API_KEY = os.environ.get("LITELLM_API_KEY", "")
-# Judge model. Default gpt-4o for reproducibility (uses the required OpenAI key)
-# and RAGAS reliability; set EVAL_JUDGE_MODEL=claude-sonnet-4 for a cross-family
-# judge that avoids same-family self-preference bias (needs an Anthropic key).
 EVAL_JUDGE_MODEL = os.environ.get("EVAL_JUDGE_MODEL", "gpt-4o")
 
 FAITHFULNESS_THRESHOLD = 0.7

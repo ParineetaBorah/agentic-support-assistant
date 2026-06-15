@@ -19,7 +19,7 @@ infra/       Docker configs for Keycloak, LiteLLM, and Postgres
 | `ui`         | 3000 | React frontend                               |
 | `mcp_server` | 8001 | MCP tool server                              |
 | `keycloak`   | 8080 | Auth & RBAC (`sales_user`, `support_user`, `admin`) |
-| `litellm`    | 4000 | LLM proxy (OpenAI / Anthropic)               |
+| `litellm`    | 4000 | LLM proxy (OpenAI)                           |
 | `postgres`   | 5432 | Primary database                             |
 | `redis`      | 6379 | Conversation history cache                   |
 
@@ -29,7 +29,7 @@ infra/       Docker configs for Keycloak, LiteLLM, and Postgres
 
 ```bash
 cp .env.example .env
-# Edit .env — add OPENAI_API_KEY (required) and optionally ANTHROPIC_API_KEY
+# Edit .env — add OPENAI_API_KEY
 ```
 
 **2. Start all services**
@@ -89,7 +89,6 @@ See `.env.example` for all variables. Key ones:
 | Variable              | Description                                      |
 |-----------------------|--------------------------------------------------|
 | `OPENAI_API_KEY`      | Required — used by LiteLLM proxy                |
-| `ANTHROPIC_API_KEY`   | Optional — only needed if switching to Claude    |
 | `LITELLM_MODEL`       | Model name passed to LiteLLM (default: `gpt-4o-mini`) |
 | `LANGSMITH_API_KEY`   | Optional — enables LangSmith tracing             |
 | `LANGSMITH_TRACING`   | Set to `true` to enable tracing                  |
@@ -113,9 +112,6 @@ docker compose run --rm eval
 
 # full: trajectory + grounding + reasonableness (judge-LLM calls, slower)
 docker compose run --rm -e RAGAS_ENABLED=true eval
-
-# full, with the cross-family judge (needs a valid ANTHROPIC_API_KEY)
-docker compose run --rm -e RAGAS_ENABLED=true -e EVAL_JUDGE_MODEL=claude-sonnet-4 eval
 ```
 
 Results print as a `Q# | Status | Trajectory | Faithful | Reasonable | …` table and
@@ -149,12 +145,8 @@ RAGAS_ENABLED=true eval/.venv/bin/python eval/run_eval.py
 
 **Judge model.** Faithfulness and reasonableness are scored by a judge model
 (`EVAL_JUDGE_MODEL`) via LiteLLM. The default is **`gpt-4o`** — reproducible
-with the required OpenAI key and the most reliable pairing with RAGAS. Note the
-trade-off: gpt-4o grading the gpt-4o-mini agent is *same-family*, which risks
-self-preference bias. The bias-free choice is a **cross-family** judge —
-`EVAL_JUDGE_MODEL=claude-sonnet-4` (Claude grading the OpenAI agent) — which is
-what you'd use in production; it needs an Anthropic key. The judge is a noisy
-estimator either way — validate against a few human labels before trusting it
+with the required OpenAI key and the most reliable pairing with RAGAS. The judge
+is a noisy estimator — validate against a few human labels before trusting it
 for anything high-stakes.
 
 **Known limitation.** RAGAS faithfulness can be unreliable on negation/absence
