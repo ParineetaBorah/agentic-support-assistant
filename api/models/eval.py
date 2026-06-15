@@ -13,6 +13,7 @@ class EvalTestCase(BaseModel):
     id: str
     question: str
     user: Literal["alice", "bob", "carol"]
+    context_turns: list[str] = []
     expected_tool_sequence: list[str]
     expected_grounded: bool
     expected_outcome: Literal["success", "guardrail_blocked", "propose_then_confirm"]

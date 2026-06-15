@@ -19,6 +19,7 @@ from auth.rbac import require_sales_or_above
 from core.redis import get_conversation_history, save_conversation_turn
 from db.conversations import (
     create_conversation,
+    fetch_known_entities,
     get_conversation,
     insert_agent_action,
     insert_conversation_turn,
@@ -81,10 +82,13 @@ async def _prepare_chat_state(
     initial_messages = [_history_to_message(turn) for turn in history]
     initial_messages.append(HumanMessage(content=body.message))
 
+    known_entities = await fetch_known_entities(conn, conversation_id)
+
     initial_state: AgentState = {
         "conversation_id": conversation_id,
         "user_id": current_user.user_id,
         "user_role": current_user.role,
+        "known_entities": known_entities,
         "messages": initial_messages,
         "final_response": None,
         "total_prompt_tokens": 0,

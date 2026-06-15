@@ -35,6 +35,10 @@ CUSTOMERS = [
     ("a1000000-0000-0000-0000-000000000003", "Umbrella Ltd", "startup", "Biotech", "b1000000-0000-0000-0000-000000000005"),
     ("a1000000-0000-0000-0000-000000000004", "Hooli", "enterprise", "Technology", "b1000000-0000-0000-0000-000000000003"),
     ("a1000000-0000-0000-0000-000000000005", "Stark Industries", "enterprise", "Manufacturing", "b1000000-0000-0000-0000-000000000004"),
+    # Random (non-sequential) UUIDs — production-like, so the agent cannot guess
+    # one customer's id from another's; it must actually call get_customer_profile.
+    ("7d3a9c14-2e6b-4f81-b0a5-9c1e8d4f2a36", "Wonka Industries", "enterprise", "Manufacturing", "b1000000-0000-0000-0000-000000000005"),
+    ("1f9b6e02-8c4d-4a73-9e15-3b7d2c6a8f04", "Soylent Corp", "smb", "Food", "b1000000-0000-0000-0000-000000000004"),
 ]
 
 ISSUES = [
@@ -125,6 +129,31 @@ ISSUES = [
         "Batch invoice PDF generation fails for orders with very many line items.",
         "low",
         "closed",
+    ),
+    # Issues for the random-UUID customers (Wonka, Soylent) — also random UUIDs.
+    (
+        "a4e1c7b9-6f23-4d8a-91c5-0e7b2d4a6c81",
+        "7d3a9c14-2e6b-4f81-b0a5-9c1e8d4f2a36",
+        "Conveyor belt sensor failure",
+        "Sensors on the main production conveyor are dropping readings intermittently.",
+        "high",
+        "open",
+    ),
+    (
+        "b8c2f5d7-3a19-4e62-87f0-5d1c9a3b7e24",
+        "7d3a9c14-2e6b-4f81-b0a5-9c1e8d4f2a36",
+        "Batch mixer overheating",
+        "The chocolate batch mixer trips its thermal cutoff under sustained load.",
+        "critical",
+        "open",
+    ),
+    (
+        "e2d8f3a1-7c46-4b95-a3e8-1f0d6b2c9a57",
+        "1f9b6e02-8c4d-4a73-9e15-3b7d2c6a8f04",
+        "Ingredient supply data mismatch",
+        "Supplier feed quantities do not reconcile with the inventory system.",
+        "medium",
+        "open",
     ),
 ]
 

@@ -134,3 +134,78 @@ async def insert_agent_action(
         _as_jsonb(tool_input),
         _as_jsonb(tool_output),
     )
+
+
+_ENTITY_TOOLS = ("get_customer_profile", "get_open_issues", "get_issue_detail")
+
+
+def _loads(value: object) -> object:
+    """Parse a jsonb value (asyncpg returns it as a string), or pass through if already decoded."""
+    if isinstance(value, str):
+        try:
+            return json.loads(value)
+        except json.JSONDecodeError:
+            return None
+    return value
+
+
+def _tool_result(tool_output: object) -> dict | None:
+    """Extract the result object from an agent_actions.tool_output MCP content-block list."""
+    blocks = _loads(tool_output)
+    if isinstance(blocks, list) and blocks and isinstance(blocks[0], dict):
+        text = blocks[0].get("text")
+        parsed = _loads(text) if isinstance(text, str) else None
+        return parsed if isinstance(parsed, dict) else None
+    return blocks if isinstance(blocks, dict) else None
+
+
+async def fetch_known_entities(conn: asyncpg.Connection, conversation_id: str) -> str:
+    """Reconstruct resolved UUIDs for the most recently looked-up customer as a prompt block.
+
+    Scoped to the current customer (the last get_customer_profile in the
+    conversation) to avoid cross-customer confusion, with issues grouped under
+    it. Returns "" if no customer has been resolved yet.
+    """
+    rows = await conn.fetch(
+        """
+        SELECT tool_name, tool_input, tool_output
+        FROM agent_actions
+        WHERE conversation_id = $1 AND tool_name = ANY($2::text[])
+        ORDER BY created_at
+        """,
+        conversation_id,
+        list(_ENTITY_TOOLS),
+    )
+
+    customer_names: dict[str, str] = {}
+    issues_by_customer: dict[str, dict[str, str]] = {}
+    current_customer_id: str | None = None
+
+    for row in rows:
+        result = _tool_result(row["tool_output"])
+        args = _loads(row["tool_input"])
+        args = args if isinstance(args, dict) else {}
+        if row["tool_name"] == "get_customer_profile" and isinstance(result, dict) and result.get("id"):
+            customer_names[result["id"]] = result.get("name", result["id"])
+            current_customer_id = result["id"]
+        elif row["tool_name"] == "get_open_issues" and isinstance(result, dict) and args.get("customer_id"):
+            bucket = issues_by_customer.setdefault(args["customer_id"], {})
+            for issue in result.get("issues", []):
+                if isinstance(issue, dict) and issue.get("id") and issue.get("title"):
+                    bucket[issue["title"]] = issue["id"]
+        elif row["tool_name"] == "get_issue_detail" and isinstance(result, dict):
+            cid, iid, title = result.get("customer_id"), result.get("id"), result.get("title")
+            if cid and iid and title:
+                issues_by_customer.setdefault(cid, {})[title] = iid
+
+    if current_customer_id is None:
+        return ""
+
+    lines = [
+        "KNOWN IDENTIFIERS (resolved earlier in this conversation; use these UUIDs directly as tool "
+        "arguments — do not re-resolve or guess):",
+        f"{customer_names[current_customer_id]} ({current_customer_id}):",
+    ]
+    for title, issue_id in issues_by_customer.get(current_customer_id, {}).items():
+        lines.append(f"  - {title} = {issue_id}")
+    return "\n".join(lines)

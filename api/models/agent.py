@@ -21,6 +21,7 @@ class AgentState(TypedDict):
     conversation_id: str
     user_id: str
     user_role: str
+    known_entities: str
     messages: Annotated[list[BaseMessage], add_messages]
     final_response: str | None
     total_prompt_tokens: int

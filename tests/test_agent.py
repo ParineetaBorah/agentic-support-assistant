@@ -43,6 +43,7 @@ async def run_agent(query: str) -> AgentState:
             "conversation_id": "test-conversation",
             "user_id": CAROL_USER_ID,
             "user_role": CAROL_ROLE,
+            "known_entities": "",
             "messages": [HumanMessage(content=query)],
             "final_response": None,
             "total_prompt_tokens": 0,

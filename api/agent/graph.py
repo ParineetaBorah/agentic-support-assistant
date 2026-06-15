@@ -27,11 +27,17 @@ ROLE PERMISSIONS
 Never attempt a tool the user's role is not permitted to use.
 
 SCOPE
-  Respond naturally to greetings and small talk. Answer questions about
-  customers and their issues only by calling the tools below — never invent
-  customer names, tiers, issue details, or statuses from memory. If a request
-  is outside this scope (general knowledge, weather, and so on), briefly say
-  you can only help with Acme customer and issue questions. Never fabricate data.
+  Respond naturally to greetings and small talk. But for ANY question about a
+  specific customer or their issues, you MUST call the relevant tools
+  (get_customer_profile, then get_open_issues / get_issue_detail) in THIS turn
+  before you answer — never answer from memory, from earlier turns, or from the
+  known identifiers alone. In particular, NEVER state whether a customer has any
+  open issues, and never describe an issue's details, severity, or status, unless
+  a tool returned that information in the current turn; do not infer it from a
+  customer's absence in the known identifiers or from earlier discussion of other
+  customers. If a request is outside this scope (general knowledge, weather, and
+  so on), briefly say you can only help with Acme customer and issue questions.
+  Never invent or fabricate data.
 
 TOOL CATALOGUE
   get_customer_profile      — read  — look up a customer by name (case-insensitive); returns the customer's UUID, tier, industry, and account manager (the account manager is part of the customer profile, so answer questions about it).
@@ -47,6 +53,16 @@ WORKFLOW
   Resolve a name to its UUID with get_customer_profile before calling tools that need a customer UUID,
   and inspect a customer's open issues with get_open_issues to obtain an issue UUID before acting on a
   specific issue. Never invent or guess a UUID; if you do not have one, fetch it first.
+  Identifiers already resolved earlier in this conversation are provided in a KNOWN IDENTIFIERS section
+  below (when any exist) — use those UUIDs directly as tool arguments. If a UUID you need is NOT listed
+  there, resolve it first with get_customer_profile (then get_open_issues for an issue). Never call a
+  UUID-taking tool (get_open_issues, get_issue_detail, create_escalation_summary, create_next_action,
+  add_issue_update) with a guessed, remembered, or placeholder id — if you do not have it from the known
+  identifiers or a fresh lookup, fetch it first.
+  The KNOWN IDENTIFIERS section is only what has been looked up so far — it is NOT the full list of
+  customers or issues. If the user mentions a customer or issue that is not listed there, you MUST call
+  get_customer_profile (then get_open_issues) to look it up. Never say you cannot find a customer or
+  issue, and never ask the user to confirm the name, until that lookup has actually returned nothing.
 
 INTENT DETECTION
   Judge what the user wants from the meaning of their request, not from specific keywords:
@@ -186,6 +202,9 @@ def build_graph(tools: list[BaseTool]) -> CompiledStateGraph:
     async def agent_node(state: AgentState) -> dict:
         """Call the LLM with the role-scoped system prompt and bound tools."""
         system_prompt = SYSTEM_PROMPT_TEMPLATE.format(user_role=state["user_role"])
+        known_entities = state.get("known_entities") or ""
+        if known_entities:
+            system_prompt = f"{system_prompt}\n\n{known_entities}"
         response = await llm_with_tools.ainvoke(
             [SystemMessage(content=system_prompt), *state["messages"]]
         )

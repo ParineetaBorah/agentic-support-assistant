@@ -97,11 +97,28 @@ def _score(
 
 
 async def _run_case(client: httpx.AsyncClient, token: str, case: EvalTestCase) -> EvalResult:
-    """Run one test case against /chat and score the result."""
+    """Run one test case against /chat and score the result.
+
+    context_turns (if any) are sent first to build up multi-turn conversation
+    state; only the final `question` is timed and scored.
+    """
     headers = {"Authorization": f"Bearer {token}"}
 
+    conversation_id: str | None = None
+    for turn in case.context_turns:
+        payload = {"message": turn}
+        if conversation_id is not None:
+            payload["conversation_id"] = conversation_id
+        ctx = await client.post("/chat", json=payload, headers=headers)
+        if ctx.status_code == 200:
+            conversation_id = ctx.json()["conversation_id"]
+
+    question_payload = {"message": case.question}
+    if conversation_id is not None:
+        question_payload["conversation_id"] = conversation_id
+
     start = time.perf_counter()
-    response = await client.post("/chat", json={"message": case.question}, headers=headers)
+    response = await client.post("/chat", json=question_payload, headers=headers)
     duration_ms = (time.perf_counter() - start) * 1000
 
     if response.status_code != 200:

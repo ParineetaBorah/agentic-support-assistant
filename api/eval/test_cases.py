@@ -107,4 +107,20 @@ TEST_CASES: list[dict] = [
         "expected_grounded": False,
         "expected_outcome": "success",
     },
+    {
+        # Multi-turn: after discussing several other customers, switch to a customer
+        # whose UUID is random (unguessable) — the agent must actually look it up,
+        # not answer from memory or a guessed id. Guards the grounding + tool-first rules.
+        "id": "Q12",
+        "context_turns": [
+            "hooli open issues",
+            "stark open issues",
+            "create escalation summary for Globex Corp",
+        ],
+        "question": "What about Wonka Industries' open issues?",
+        "user": "carol",
+        "expected_tool_sequence": ["get_customer_profile", "get_open_issues"],
+        "expected_grounded": True,
+        "expected_outcome": "success",
+    },
 ]
