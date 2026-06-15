@@ -2,9 +2,18 @@
 
 A role-aware enterprise support agent built with LangGraph, FastAPI, and MCP. Agents look up customers and issues, draft escalation summaries, and record next actions — all scoped to the caller's Keycloak role.
 
+## Deliverables
+
+| | |
+|---|---|
+| **Eval results** | [docs/EVALUATION.md](docs/EVALUATION.md) |
+| **AI usage notes** | [docs/AI_USAGE.md](docs/AI_USAGE.md) |
+
 ## Architecture
 
 ![Architecture diagram](docs/architecture.png)
+
+**Folder structure**
 
 ```
 ui/          React + TypeScript frontend
@@ -46,36 +55,6 @@ This runs migrations and seeds dev data automatically via the `migrate` service.
 
 Visit `http://localhost:3000`. Log in with a Keycloak user from `infra/keycloak/acme-realm.json`.
 
-## Local development (without Docker)
-
-Start dependencies first:
-
-```bash
-docker compose up -d postgres keycloak redis litellm mcp_server
-```
-
-Then run the API:
-
-```bash
-cd api
-pip install -r requirements.txt
-uvicorn main:app --reload
-```
-
-## Database migrations
-
-```bash
-cd api && alembic upgrade head   # apply migrations
-cd api && python db/seed.py      # seed dev data
-```
-
-When running via Docker, always rebuild the migrate image after schema changes:
-
-```bash
-docker compose run --build --rm migrate
-docker compose up -d --no-deps --force-recreate api mcp_server
-```
-
 ## Agent roles
 
 | Role           | Capabilities                                                   |
@@ -116,59 +95,3 @@ docker compose run --rm eval
 docker compose run --rm -e RAGAS_ENABLED=true eval
 ```
 
-Results print as a `Q# | Status | Trajectory | Faithful | Reasonable | …` table and
-are written to `eval/results.json` (with the judge's per-case rationale).
-
-### Latest results (12/12 passing, RAGAS enabled)
-
-| Q#  | User  | Status | Trajectory | Faithful | Reasonable |
-|-----|-------|--------|------------|----------|------------|
-| Q1  | alice | PASS   | PASS       | —        | —          |
-| Q2  | alice | PASS   | PASS       | —        | —          |
-| Q3  | bob   | PASS   | PASS       | 0.92     | —          |
-| Q4  | bob   | PASS   | PASS       | 0.79     | —          |
-| Q5  | carol | PASS   | PASS       | —        | 5/5        |
-| Q6  | alice | PASS   | PASS       | —        | —          |
-| Q7  | carol | PASS   | PASS       | —        | —          |
-| Q8  | alice | PASS   | PASS       | —        | —          |
-| Q9  | carol | PASS   | PASS       | 0.79     | 3/5        |
-| Q10 | bob   | PASS   | PASS       | —        | —          |
-| Q11 | alice | PASS   | PASS       | —        | —          |
-| Q12 | carol | PASS   | PASS       | 0.82     | —          |
-
-The harness scores each case on three dimensions:
-
-- **Trajectory** — expected tools must appear in the right order (ordered
-  subsequence; extra/interleaved calls allowed). RBAC enforcement
-  (`guardrail_blocked`) and propose-then-confirm cases keep their dedicated
-  gating on top.
-- **Grounding** — RAGAS faithfulness: is the answer supported by the agent's
-  tool outputs (read from `agent_actions`)? Applied only to **read** queries —
-  skipped for RBAC-blocked cases, no-tool cases, and write confirmations (whose
-  text echoes the user's request, not retrieved data).
-- **Recommendation reasonableness** — a rubric LLM-judge (1–5) on the agent's
-  recommended next action vs. the issue facts it retrieved. Applied to the
-  recommendation cases (Q5's recorded action, Q9's escalation proposal). Not
-  applied to issue-update logging (e.g. Q10), which is not a recommendation.
-
-Both judge-based dimensions are **optional and off by default** (`RAGAS_ENABLED`,
-so dev runs stay fast). The eval runs in its own container/venv so the judge
-stack (ragas + langchain) never touches the app's langgraph stack.
-
-Running it locally without Docker (for development) instead:
-
-```bash
-python -m venv eval/.venv && eval/.venv/bin/pip install -r eval/requirements.txt
-RAGAS_ENABLED=true eval/.venv/bin/python eval/run_eval.py
-```
-
-**Judge model.** Faithfulness and reasonableness are scored by a judge model
-(`EVAL_JUDGE_MODEL`) via LiteLLM. The default is **`gpt-4o`** — reproducible
-with the required OpenAI key and the most reliable pairing with RAGAS. The judge
-is a noisy estimator — validate against a few human labels before trusting it
-for anything high-stakes.
-
-**Known limitation.** RAGAS faithfulness can be unreliable on negation/absence
-(e.g. a correct "no such customer" answer) and occasionally returns `NaN` on a
-judge sub-call error; both are treated as *not scored* rather than a grounding
-fail, and the case is flagged rather than special-cased.

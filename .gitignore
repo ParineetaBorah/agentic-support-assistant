@@ -38,8 +38,5 @@ ui/vite.config.d.ts
 .claude/settings.local.json
 .claude/scheduled_tasks.lock
 
-# Eval results (generated, not source)
-eval/results.json
-
 # Docker
 *.log
