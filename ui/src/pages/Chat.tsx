@@ -7,6 +7,7 @@ import type { ConversationSummary, User } from "../types";
 interface DisplayMessage {
   role: "user" | "assistant";
   content: string;
+  activity?: string[];
   toolsCalled?: string[];
   riskLevel?: string;
 }
@@ -47,7 +48,6 @@ export default function Chat() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
-  const [streamingStatus, setStreamingStatus] = useState<string | undefined>(undefined);
   const { conversationId } = useParams<{ conversationId?: string }>();
   const navigate = useNavigate();
   const user = loadUser();
@@ -135,7 +135,6 @@ export default function Chat() {
     setMessages((prev) => [...prev, { role: "user", content: text }, { role: "assistant", content: "" }]);
     setInput("");
     setLoading(true);
-    setStreamingStatus(undefined);
 
     const controller = new AbortController();
     abortControllerRef.current = controller;
@@ -155,11 +154,13 @@ export default function Chat() {
         conversationId,
         {
           onStatus: (statusText) => {
-            setStreamingStatus(statusText);
-            updateLastMessage({ content: "" });
+            updateLastMessage((message) => ({
+              ...message,
+              content: "",
+              activity: [...(message.activity ?? []), statusText],
+            }));
           },
           onToken: (content) => {
-            setStreamingStatus(undefined);
             updateLastMessage((message) => ({ ...message, content: message.content + content }));
           },
           onDone: (response) => {
@@ -186,7 +187,6 @@ export default function Chat() {
       updateLastMessage({ content: "Something went wrong reaching the agent. Please try again." });
     } finally {
       setLoading(false);
-      setStreamingStatus(undefined);
       abortControllerRef.current = null;
     }
   }
@@ -268,11 +268,13 @@ export default function Chat() {
               )}
 
               {messages.map((message, index) => {
-                const isPending =
+                const isStreaming =
                   loading &&
                   message.role === "assistant" &&
                   index === messages.length - 1 &&
                   message.content === "";
+                const activity = message.activity ?? [];
+                const showInitialDots = isStreaming && activity.length === 0;
 
                 return (
                   <div key={index} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
@@ -283,9 +285,32 @@ export default function Chat() {
                           : "border border-gray-200 bg-white text-gray-800"
                       }`}
                     >
-                      {isPending ? (
+                      {message.role === "assistant" && activity.length > 0 && (
+                        <details open={isStreaming} className="mb-2">
+                          <summary className="cursor-pointer select-none text-xs font-medium text-gray-400">
+                            {isStreaming
+                              ? activity[activity.length - 1]
+                              : `Worked using ${activity.length} tool${activity.length > 1 ? "s" : ""}`}
+                          </summary>
+                          <ul className="mt-1 space-y-1 border-l-2 border-gray-200 pl-3 text-xs text-gray-500">
+                            {activity.map((step, stepIndex) => {
+                              const inProgress = isStreaming && stepIndex === activity.length - 1;
+                              return (
+                                <li key={stepIndex} className="flex items-center gap-1.5">
+                                  <span className={inProgress ? "animate-pulse" : "text-green-600"}>
+                                    {inProgress ? "○" : "✓"}
+                                  </span>
+                                  <span>{step}</span>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        </details>
+                      )}
+
+                      {showInitialDots ? (
                         <div className="flex items-center gap-2 text-gray-400">
-                          <span>{streamingStatus ?? "Agent is thinking"}</span>
+                          <span>Agent is thinking</span>
                           <span className="flex gap-1">
                             <span
                               className="h-1.5 w-1.5 animate-bounce rounded-full bg-gray-400"
@@ -302,11 +327,11 @@ export default function Chat() {
                           </span>
                         </div>
                       ) : (
-                        <p className="whitespace-pre-wrap">{message.content}</p>
+                        message.content && <p className="whitespace-pre-wrap">{message.content}</p>
                       )}
 
                       {message.role === "assistant" &&
-                        !isPending &&
+                        message.content &&
                         ((message.toolsCalled && message.toolsCalled.length > 0) || message.riskLevel) && (
                           <div className="mt-2 flex flex-wrap items-center gap-1.5">
                             {message.toolsCalled?.map((tool, toolIndex) => (
