@@ -12,6 +12,7 @@ from langgraph.graph.state import CompiledStateGraph
 
 from agent.errors import parse_tool_error
 from core.config import settings
+from core.resilience import LLM_MAX_RETRIES, LLM_TIMEOUT
 from models.agent import AgentState, ToolErrorPayload
 
 logger = structlog.get_logger()
@@ -172,7 +173,12 @@ def build_graph(tools: list[BaseTool]) -> CompiledStateGraph:
         model=settings.litellm_model,
         api_key=settings.litellm_api_key or "not-needed",
         base_url=settings.litellm_url,
-        http_async_client=httpx.AsyncClient(event_hooks={"response": [cost_capture.hook]}),
+        timeout=LLM_TIMEOUT,
+        max_retries=LLM_MAX_RETRIES,
+        http_async_client=httpx.AsyncClient(
+            timeout=LLM_TIMEOUT,
+            event_hooks={"response": [cost_capture.hook]},
+        ),
     )
     llm_with_tools = llm.bind_tools(tools, parallel_tool_calls=False)
     tools_by_name = {tool.name: tool for tool in tools}

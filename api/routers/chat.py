@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import time
 from collections.abc import AsyncIterator
 
 import asyncpg
+import structlog
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
@@ -27,6 +29,8 @@ from models.agent import AgentState
 from models.chat import ChatRequest, ChatResponse, ChatStreamError, ChatStreamStatus, ChatStreamToken
 
 router = APIRouter()
+
+logger = structlog.get_logger()
 
 TOOL_STATUS_MESSAGES = {
     "get_customer_profile": "Looking up customer details...",
@@ -200,6 +204,11 @@ async def post_chat_stream(
         model_used = ""
         final_response: str | None = None
 
+        start = time.perf_counter()
+        first_token_at: float | None = None
+        last_token_at: float | None = None
+        token_count = 0
+
         try:
             async with get_mcp_tools() as tools:
                 graph = build_graph(tools)
@@ -211,6 +220,11 @@ async def post_chat_stream(
                     if mode == "messages":
                         message_chunk, chunk_metadata = chunk
                         if chunk_metadata.get("langgraph_node") == "agent" and message_chunk.content:
+                            now = time.perf_counter()
+                            if first_token_at is None:
+                                first_token_at = now
+                            last_token_at = now
+                            token_count += 1
                             yield _sse("token", ChatStreamToken(content=message_chunk.content))
                     elif mode == "updates":
                         if "agent" in chunk:
@@ -246,6 +260,25 @@ async def post_chat_stream(
             model_used=model_used,
             final_response=final_response,
             history_len=len(history),
+        )
+
+        # Streaming latency: time to first token, average time per subsequent
+        # token (inter-token latency), and total time to complete the request.
+        total_ms = (time.perf_counter() - start) * 1000
+        ttft_ms = (first_token_at - start) * 1000 if first_token_at is not None else None
+        tpot_ms = (
+            (last_token_at - first_token_at) / (token_count - 1) * 1000
+            if token_count > 1 and first_token_at is not None and last_token_at is not None
+            else None
+        )
+        logger.info(
+            "chat_stream",
+            conversation_id=conversation_id,
+            token_count=token_count,
+            ttft_ms=round(ttft_ms, 2) if ttft_ms is not None else None,
+            tpot_ms=round(tpot_ms, 2) if tpot_ms is not None else None,
+            total_ms=round(total_ms, 2),
+            tools_called=chat_response.tools_called,
         )
         yield _sse("done", chat_response)
 

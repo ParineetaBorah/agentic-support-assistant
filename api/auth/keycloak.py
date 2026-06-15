@@ -14,6 +14,7 @@ from jose.exceptions import JOSEError
 from pydantic import ValidationError
 
 from core.config import settings
+from core.resilience import HTTP_TIMEOUT, transient_http_retry
 from models.auth import KeycloakClaims
 
 JWKS_URL = f"{settings.keycloak_url}/realms/{settings.keycloak_realm}/protocol/openid-connect/certs"
@@ -37,14 +38,20 @@ class CurrentUser:
     role: str
 
 
+@transient_http_retry
+async def _fetch_jwks() -> dict[str, Any]:
+    """Fetch Keycloak's JWKS, retrying transient network failures with backoff."""
+    async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
+        response = await client.get(JWKS_URL)
+        response.raise_for_status()
+        return response.json()
+
+
 async def _get_jwks() -> dict[str, Any]:
     """Return Keycloak's JWKS, refreshing the cache if its TTL has elapsed."""
     now = time.monotonic()
     if _jwks_cache["keys"] is None or now - _jwks_cache["fetched_at"] > JWKS_CACHE_TTL_SECONDS:
-        async with httpx.AsyncClient() as client:
-            response = await client.get(JWKS_URL)
-            response.raise_for_status()
-        _jwks_cache["keys"] = response.json()
+        _jwks_cache["keys"] = await _fetch_jwks()
         _jwks_cache["fetched_at"] = now
     return _jwks_cache["keys"]
 

@@ -8,11 +8,19 @@ from jose import jwt
 
 from auth.keycloak import CurrentUser, get_current_user, select_role
 from core.config import settings
+from core.resilience import HTTP_TIMEOUT, transient_http_retry
 from models.auth import KeycloakClaims, KeycloakTokenResponse, LoginRequest, LoginResponse, UserOut
 
 router = APIRouter()
 
 TOKEN_URL = f"{settings.keycloak_url}/realms/{settings.keycloak_realm}/protocol/openid-connect/token"
+
+
+@transient_http_retry
+async def _request_keycloak_token(data: dict[str, str]) -> httpx.Response:
+    """POST to Keycloak's token endpoint, retrying transient network failures with backoff."""
+    async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
+        return await client.post(TOKEN_URL, data=data)
 
 
 @router.get("/me", response_model=UserOut)
@@ -30,17 +38,15 @@ async def login(body: LoginRequest) -> LoginResponse:
     The Keycloak client secret is used only here, server-side; browser code
     never talks to Keycloak directly.
     """
-    async with httpx.AsyncClient() as client:
-        response = await client.post(
-            TOKEN_URL,
-            data={
-                "grant_type": "password",
-                "client_id": settings.keycloak_client_id,
-                "client_secret": settings.keycloak_client_secret,
-                "username": body.username,
-                "password": body.password,
-            },
-        )
+    response = await _request_keycloak_token(
+        {
+            "grant_type": "password",
+            "client_id": settings.keycloak_client_id,
+            "client_secret": settings.keycloak_client_secret,
+            "username": body.username,
+            "password": body.password,
+        }
+    )
 
     if response.status_code == status.HTTP_401_UNAUTHORIZED:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")

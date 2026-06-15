@@ -15,6 +15,7 @@ from mcp import ClientSession
 from mcp.client.streamable_http import streamablehttp_client
 
 from core.config import settings
+from core.resilience import MCP_TIMEOUT
 
 
 @asynccontextmanager
@@ -24,7 +25,7 @@ async def get_mcp_tools() -> AsyncIterator[list[BaseTool]]:
     The underlying HTTP session stays open for the duration of the
     `async with` block, since each returned tool calls back into it.
     """
-    async with streamablehttp_client(settings.mcp_server_url) as (read, write, _):
+    async with streamablehttp_client(settings.mcp_server_url, timeout=MCP_TIMEOUT) as (read, write, _):
         async with ClientSession(read, write) as session:
             await session.initialize()
             yield await load_mcp_tools(session)
