@@ -4,6 +4,8 @@ A role-aware enterprise support agent built with LangGraph, FastAPI, and MCP. Ag
 
 ## Architecture
 
+![Architecture diagram](docs/architecture.png)
+
 ```
 ui/          React + TypeScript frontend
 api/         FastAPI backend — auth, routers, LangGraph agent, Alembic migrations
@@ -116,6 +118,23 @@ docker compose run --rm -e RAGAS_ENABLED=true eval
 
 Results print as a `Q# | Status | Trajectory | Faithful | Reasonable | …` table and
 are written to `eval/results.json` (with the judge's per-case rationale).
+
+### Latest results (12/12 passing, RAGAS enabled)
+
+| Q#  | User  | Status | Trajectory | Faithful | Reasonable |
+|-----|-------|--------|------------|----------|------------|
+| Q1  | alice | PASS   | PASS       | —        | —          |
+| Q2  | alice | PASS   | PASS       | —        | —          |
+| Q3  | bob   | PASS   | PASS       | 0.92     | —          |
+| Q4  | bob   | PASS   | PASS       | 0.79     | —          |
+| Q5  | carol | PASS   | PASS       | —        | 5/5        |
+| Q6  | alice | PASS   | PASS       | —        | —          |
+| Q7  | carol | PASS   | PASS       | —        | —          |
+| Q8  | alice | PASS   | PASS       | —        | —          |
+| Q9  | carol | PASS   | PASS       | 0.79     | 3/5        |
+| Q10 | bob   | PASS   | PASS       | —        | —          |
+| Q11 | alice | PASS   | PASS       | —        | —          |
+| Q12 | carol | PASS   | PASS       | 0.82     | —          |
 
 The harness scores each case on three dimensions:
 

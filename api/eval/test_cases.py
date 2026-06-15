@@ -19,7 +19,7 @@ TEST_USER_PASSWORD = "password123"
 TEST_CASES: list[dict] = [
     {
         "id": "Q1",
-        "question": "Tell me about Globex Corp",
+        "question": "Tell me about Globex",
         "user": "alice",
         "expected_tool_sequence": ["get_customer_profile"],
         "expected_grounded": True,
@@ -27,7 +27,7 @@ TEST_CASES: list[dict] = [
     },
     {
         "id": "Q2",
-        "question": "What are Globex Corp's open issues?",
+        "question": "What are Globex's open issues?",
         "user": "alice",
         "expected_tool_sequence": ["get_customer_profile", "get_open_issues"],
         "expected_grounded": True,
@@ -43,7 +43,7 @@ TEST_CASES: list[dict] = [
     },
     {
         "id": "Q4",
-        "question": "Summarise the escalation risk for Globex Corp",
+        "question": "Summarise the escalation risk for Globex",
         "user": "bob",
         "expected_tool_sequence": ["get_customer_profile", "create_escalation_summary"],
         "expected_grounded": True,
@@ -84,7 +84,7 @@ TEST_CASES: list[dict] = [
     },
     {
         "id": "Q9",
-        "question": "What next action do you recommend for Globex Corp's production database issue?",
+        "question": "What next action do you recommend for Globex's production database issue?",
         "user": "carol",
         "expected_tool_sequence": ["get_customer_profile", "create_escalation_summary"],
         "expected_grounded": True,
@@ -93,7 +93,7 @@ TEST_CASES: list[dict] = [
     },
     {
         "id": "Q10",
-        "question": "Log on Globex Corp's critical issue that I restarted the primary database and connections have recovered",
+        "question": "Log on Globex's critical issue that I restarted the primary database and connections have recovered",
         "user": "bob",
         "expected_tool_sequence": ["get_customer_profile", "get_open_issues", "add_issue_update"],
         "expected_grounded": True,
@@ -115,7 +115,7 @@ TEST_CASES: list[dict] = [
         "context_turns": [
             "hooli open issues",
             "stark open issues",
-            "create escalation summary for Globex Corp",
+            "create escalation summary for Globex",
         ],
         "question": "What about Wonka Industries' open issues?",
         "user": "carol",
