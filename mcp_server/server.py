@@ -582,9 +582,13 @@ def create_escalation_summary(customer_id: str, user_role: str) -> EscalationSum
     raw_output = _call_llm(_build_escalation_prompt(customer_row[1], issues_with_updates))
 
     try:
-        return EscalationSummary.model_validate_json(raw_output)
+        summary = EscalationSummary.model_validate_json(raw_output)
     except ValidationError as exc:
         raise ValueError(validation_error(f"LLM output failed validation: {exc}")) from exc
+
+    if user_role != "admin":
+        summary = summary.model_copy(update={"recommendation": ""})
+    return summary
 
 
 atexit.register(_pool.closeall)

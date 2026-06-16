@@ -78,9 +78,9 @@ Visit `http://localhost:3000` and log in with one of the test users below.
 
 | Role           | Capabilities                                                   |
 |----------------|----------------------------------------------------------------|
-| `sales_user`   | Read customers and issues                                      |
-| `support_user` | Read + create escalation summaries, add issue updates, record recommendations |
-| `admin`        | All of the above + create next actions                         |
+| `sales_user`   | Read-only access to customer and issue data                    |
+| `support_user` | Read and write access for issues and escalations               |
+| `admin`        | Full access, including creating and updating next actions       |
 
 ## Environment variables
 

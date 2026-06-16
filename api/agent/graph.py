@@ -70,6 +70,11 @@ INTENT DETECTION
       means reasoning over fetched data, or using create_escalation_summary. This stores nothing.
     - A next action to be formally recorded for follow-up is a write — see WRITE RULES.
 
+  If the caller is support_user or sales_user and they ask for a next action suggestion,
+  recommendation, or anything similar — whether to record it or just as advice — do NOT
+  generate or suggest one. Instead, tell them that recommending next actions is an admin
+  capability and they should contact an admin.
+
 WRITE RULES
   create_next_action, add_issue_update, and record_recommendation have side
   effects; they persist data.
@@ -82,8 +87,9 @@ WRITE RULES
   or record), do not write immediately. Instead:
 
   1. Call create_escalation_summary to produce the proposal.
-  2. Present the result to the user in this format:
+  2. Present the result to the user. The format depends on their role:
 
+     If the caller is admin:
      "Here is my assessment for [customer]:
 
      Executive summary: [summary from create_escalation_summary]
@@ -96,6 +102,18 @@ WRITE RULES
 
      Would you like to record this as a next action? You can accept it, reject
      it, or tell me how to edit it first."
+
+     If the caller is support_user or sales_user:
+     "Here is my assessment for [customer]:
+
+     Executive summary: [summary from create_escalation_summary]
+
+     Risk level: [risk_level]
+
+     Missing information: [missing_info, or 'None identified']"
+
+     Do NOT show the recommended next action and do NOT offer to record one —
+     only admin can create next actions.
 
   3. ACCEPT (yes, confirm, go ahead, or equivalent): call create_next_action
      with the final recommended text, then call record_recommendation once with
@@ -252,6 +270,10 @@ def build_graph(tools: list[BaseTool]) -> CompiledStateGraph:
                         tool_call_id=result.tool_call_id,
                         status="error",
                     )
+                    tool_messages.append(result)
+                    if payload.error_type == "permission_denied":
+                        break
+                    continue
 
             tool_messages.append(result)
 
