@@ -2,41 +2,6 @@
 
 A role-aware enterprise support agent built with LangGraph, FastAPI, and MCP. Agents look up customers and issues, draft escalation summaries, and record next actions — all scoped to the caller's Keycloak role.
 
-## Deliverables
-
-| | |
-|---|---|
-| **Eval results** | [docs/EVALUATION.md](docs/EVALUATION.md) |
-| **AI usage notes** | [docs/AI_USAGE.md](docs/AI_USAGE.md) |
-
-## Architecture
-
-![Architecture diagram](docs/architecture.png)
-
-**Folder structure**
-
-```
-ui/          React + TypeScript frontend
-api/         FastAPI backend — auth, routers, LangGraph agent, Alembic migrations
-mcp_server/  MCP tool server — customer/issue queries and writes against Postgres
-infra/       Docker configs for Keycloak, LiteLLM, and Postgres
-eval/        Evaluation harness — trajectory, grounding, and reasonableness scoring
-docs/        Architecture diagram, evaluation results, and AI usage notes
-tests/       Test scripts, split into unit/, integration/, and e2e/ (require a local Python environment; not run via Docker)
-```
-
-**Services (Docker Compose)**
-
-| Service      | Port | Purpose                                      |
-|--------------|------|----------------------------------------------|
-| `api`        | 8000 | FastAPI app + LangGraph agent                |
-| `ui`         | 3000 | React frontend                               |
-| `mcp_server` | 8001 | MCP tool server                              |
-| `keycloak`   | 8080 | Auth & RBAC (`sales_user`, `support_user`, `admin`) |
-| `litellm`    | 4000 | LLM proxy (OpenAI)                           |
-| `postgres`   | 5432 | Primary database                             |
-| `redis`      | 6379 | Conversation history cache                   |
-
 ## Quickstart
 
 **1. Copy env and fill in your API keys**
@@ -74,8 +39,43 @@ Visit `http://localhost:3000` and log in with one of the test users below.
 
 - `What are Globex's open issues?`
 - `Give me the full details of Globex's critical issue`
-- `Summarise the escalation risk for Globex`
+- `Summarise the escalation risk for Globex`_(log in as bob or carol)_
 - `Create a next action for Globex's critical issue: escalate to CTO within 1 hour` _(log in as carol)_
+
+## Deliverables
+
+| | |
+|---|---|
+| **Eval results** | [docs/EVALUATION.md](docs/EVALUATION.md) |
+| **AI usage notes** | [docs/AI_USAGE.md](docs/AI_USAGE.md) |
+
+## Architecture
+
+![Architecture diagram](docs/architecture.png)
+
+**Folder structure**
+
+```
+ui/          React + TypeScript frontend
+api/         FastAPI backend — auth, routers, LangGraph agent, Alembic migrations
+mcp_server/  MCP tool server — customer/issue queries and writes against Postgres
+infra/       Docker configs for Keycloak, LiteLLM, and Postgres
+eval/        Evaluation harness — trajectory, grounding, and reasonableness scoring
+docs/        Architecture diagram, evaluation results, and AI usage notes
+tests/       Test scripts, split into unit/, integration/, and e2e/ (require a local Python environment; not run via Docker)
+```
+
+**Services (Docker Compose)**
+
+| Service      | Port | Purpose                                      |
+|--------------|------|----------------------------------------------|
+| `api`        | 8000 | FastAPI app + LangGraph agent                |
+| `ui`         | 3000 | React frontend                               |
+| `mcp_server` | 8001 | MCP tool server                              |
+| `keycloak`   | 8080 | Auth & RBAC (`sales_user`, `support_user`, `admin`) |
+| `litellm`    | 4000 | LLM proxy (OpenAI)                           |
+| `postgres`   | 5432 | Primary database                             |
+| `redis`      | 6379 | Conversation history cache                   |
 
 ## Agent and tools
 
