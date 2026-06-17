@@ -30,6 +30,19 @@ class AgentState(TypedDict):
     model_used: str
 
 
+class ModelPricing(BaseModel):
+    """USD prices per 1M tokens for a single model.
+
+    cached_input_per_1m is the discounted rate for input tokens served from
+    the provider's prompt cache; it applies to the cache_read subset of a
+    call's input tokens.
+    """
+
+    input_per_1m: float
+    cached_input_per_1m: float
+    output_per_1m: float
+
+
 class ToolErrorPayload(BaseModel):
     """Structured error returned by an MCP tool's isError result.
 

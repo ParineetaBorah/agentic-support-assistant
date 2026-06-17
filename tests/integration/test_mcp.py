@@ -15,9 +15,9 @@ from typing import Callable
 
 from dotenv import load_dotenv
 
-load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+load_dotenv(Path(__file__).resolve().parent.parent.parent / ".env")
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "mcp_server"))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "mcp_server"))
 
 from models import (  # noqa: E402
     CustomerProfile,

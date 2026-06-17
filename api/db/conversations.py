@@ -23,7 +23,7 @@ async def get_conversation(conn: asyncpg.Connection, conversation_id: str) -> as
     """Return a conversation by id, or None if it doesn't exist."""
     return await conn.fetchrow(
         """
-        SELECT id, user_id, customer_id, started_at, ended_at
+        SELECT id, user_id, started_at
         FROM conversations
         WHERE id = $1
         """,
@@ -37,7 +37,6 @@ async def list_conversations(conn: asyncpg.Connection, user_id: str) -> list[asy
         """
         SELECT
             c.id,
-            cust.name AS customer_name,
             c.started_at,
             MAX(t.created_at) AS last_turn_at,
             COUNT(t.id) AS turn_count,
@@ -49,10 +48,9 @@ async def list_conversations(conn: asyncpg.Connection, user_id: str) -> list[asy
                 LIMIT 1
             ) AS preview
         FROM conversations c
-        LEFT JOIN customers cust ON cust.id = c.customer_id
         INNER JOIN conversation_turns t ON t.conversation_id = c.id
         WHERE c.user_id = $1
-        GROUP BY c.id, cust.name, c.started_at
+        GROUP BY c.id, c.started_at
         ORDER BY last_turn_at DESC
         LIMIT 50
         """,
@@ -61,13 +59,24 @@ async def list_conversations(conn: asyncpg.Connection, user_id: str) -> list[asy
 
 
 async def list_conversation_turns(conn: asyncpg.Connection, conversation_id: str) -> list[asyncpg.Record]:
-    """Return a conversation's turns, oldest first."""
+    """Return a conversation's turns, oldest first, each with its tool calls in call order."""
     return await conn.fetch(
         """
-        SELECT id, role, content, created_at
-        FROM conversation_turns
-        WHERE conversation_id = $1
-        ORDER BY created_at
+        SELECT
+            t.id,
+            t.role,
+            t.content,
+            t.created_at,
+            COALESCE(
+                array_agg(a.tool_name ORDER BY a.created_at)
+                    FILTER (WHERE a.tool_name IS NOT NULL),
+                '{}'
+            ) AS tools_called
+        FROM conversation_turns t
+        LEFT JOIN agent_actions a ON a.turn_id = t.id
+        WHERE t.conversation_id = $1
+        GROUP BY t.id, t.role, t.content, t.created_at
+        ORDER BY t.created_at
         """,
         conversation_id,
     )

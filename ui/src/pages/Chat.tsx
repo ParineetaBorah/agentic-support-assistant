@@ -25,6 +25,23 @@ function extractRiskLevel(text: string): string | undefined {
   return text.match(RISK_LEVEL_PATTERN)?.[1].toLowerCase();
 }
 
+// Mirrors TOOL_STATUS_MESSAGES in api/routers/chat.py. Live turns get these
+// labels over SSE; reloaded turns rebuild them here from the raw tool names so
+// the activity panel renders identically either way.
+const TOOL_STATUS_MESSAGES: Record<string, string> = {
+  get_customer_profile: "Looking up customer details...",
+  get_open_issues: "Checking open issues...",
+  get_issue_detail: "Pulling up issue details...",
+  create_next_action: "Recording the next action...",
+  create_escalation_summary: "Preparing an escalation summary...",
+  add_issue_update: "Logging the issue update...",
+  record_recommendation: "Recording the recommendation outcome...",
+};
+
+function toolStatusLabel(toolName: string): string {
+  return TOOL_STATUS_MESSAGES[toolName] ?? `Running ${toolName}...`;
+}
+
 function loadUser(): User | null {
   const stored = localStorage.getItem("acme_user");
   return stored ? (JSON.parse(stored) as User) : null;
@@ -94,11 +111,17 @@ export default function Chat() {
     try {
       const history = await getConversationHistory(id);
       setMessages(
-        history.turns.map((turn) => ({
-          role: turn.role === "user" ? "user" : "assistant",
-          content: turn.content,
-          riskLevel: turn.role === "assistant" ? extractRiskLevel(turn.content) : undefined,
-        }))
+        history.turns.map((turn) => {
+          const isAssistant = turn.role === "assistant";
+          const tools = turn.tools_called ?? [];
+          return {
+            role: isAssistant ? "assistant" : "user",
+            content: turn.content,
+            toolsCalled: isAssistant && tools.length > 0 ? tools : undefined,
+            activity: isAssistant && tools.length > 0 ? tools.map(toolStatusLabel) : undefined,
+            riskLevel: isAssistant ? extractRiskLevel(turn.content) : undefined,
+          };
+        })
       );
     } catch {
       setMessages([]);
@@ -240,11 +263,8 @@ export default function Chat() {
                     <span className="mt-0.5 text-base leading-none">💬</span>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-medium text-gray-900">
-                        {conversation.customer_name ?? conversation.preview}
+                        {conversation.preview}
                       </span>
-                      {conversation.customer_name && (
-                        <span className="block truncate text-xs text-gray-500">{conversation.preview}</span>
-                      )}
                       <span className="block text-xs text-gray-400">
                         {formatRelativeTime(conversation.last_turn_at)}
                       </span>

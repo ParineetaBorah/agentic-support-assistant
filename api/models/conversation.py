@@ -13,6 +13,7 @@ class ConversationTurnOut(BaseModel):
     role: str
     content: str
     created_at: datetime
+    tools_called: list[str] = []
 
 
 class ConversationHistoryOut(BaseModel):
@@ -26,7 +27,6 @@ class ConversationSummary(BaseModel):
     """Summary of a conversation for display in a conversation list."""
 
     id: str
-    customer_name: str | None
     started_at: datetime
     last_turn_at: datetime
     turn_count: int

@@ -21,7 +21,7 @@ from pathlib import Path
 import httpx
 from dotenv import load_dotenv
 
-load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+load_dotenv(Path(__file__).resolve().parent.parent.parent / ".env")
 
 KEYCLOAK_URL = os.environ.get("KEYCLOAK_URL", "http://localhost:8080")
 KEYCLOAK_REALM = os.environ.get("KEYCLOAK_REALM", "acme")
@@ -58,7 +58,7 @@ def auth_headers(username: str) -> dict[str, str]:
 
 def run() -> None:
     """Exercise /chat, /customers, /issues, and /next-actions RBAC end-to-end."""
-    api_dir = Path(__file__).resolve().parent.parent / "api"
+    api_dir = Path(__file__).resolve().parent.parent.parent / "api"
     sys.path.insert(0, str(api_dir))
 
     from fastapi.testclient import TestClient

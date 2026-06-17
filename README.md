@@ -20,6 +20,9 @@ ui/          React + TypeScript frontend
 api/         FastAPI backend — auth, routers, LangGraph agent, Alembic migrations
 mcp_server/  MCP tool server — customer/issue queries and writes against Postgres
 infra/       Docker configs for Keycloak, LiteLLM, and Postgres
+eval/        Evaluation harness — trajectory, grounding, and reasonableness scoring
+docs/        Architecture diagram, evaluation results, and AI usage notes
+tests/       Test scripts, split into unit/, integration/, and e2e/ (require a local Python environment; not run via Docker)
 ```
 
 **Services (Docker Compose)**
@@ -40,7 +43,7 @@ infra/       Docker configs for Keycloak, LiteLLM, and Postgres
 
 ```bash
 cp .env.example .env
-# Edit .env — add OPENAI_API_KEY
+# Edit .env — add OPENAI_API_KEY(required) and LANGSMITH_API_KEY(optional)
 ```
 
 **2. Start all services**
@@ -62,7 +65,7 @@ Visit `http://localhost:3000` and log in with one of the test users below.
 | Username | Password    | Role           | Can do                                      |
 |----------|-------------|----------------|---------------------------------------------|
 | alice    | password123 | `sales_user`   | Read customers and issues                   |
-| bob      | password123 | `support_user` | Read + write escalation summaries & updates |
+| bob      | password123 | `support_user` | Generate escalation summaries, and write issue updates (no next-action recommendations) |
 | carol    | password123 | `admin`        | All of the above + create next actions      |
 
 ![UI screenshot](docs/screenshot.png)
@@ -94,19 +97,22 @@ The agent follows a propose-then-confirm pattern for write operations: it surfac
 
 ### Streaming (`POST /chat/stream`)
 
-The API streams the agent's response as Server-Sent Events. Three event types are emitted:
+The API streams the agent's response as Server-Sent Events. Four event types are emitted:
 
 | Event | Payload | When |
 |-------|---------|------|
 | `status` | `{ "status": "..." }` | Each tool call in progress (e.g. "Pulling up issue details...") |
 | `token` | `{ "content": "..." }` | Each LLM output token as it arrives |
 | `error` | `{ "message": "..." }` | In-band error if the agent fails mid-stream (HTTP status stays 200) |
+| `done` | full `ChatResponse` object | Final event — carries the complete answer plus token usage, cost, and tools called |
 
 The UI subscribes to this stream and renders tool activity and the answer incrementally.
 
 ## MCP (Model Context Protocol)
 
 All tools are served by a dedicated MCP server (`mcp_server/`, port 8001) over HTTP using the streamable-HTTP transport. The FastAPI agent connects to it at startup and discovers tools dynamically — the agent code has no knowledge of what tools exist or how they work.
+
+Tool definitions live in `mcp_server/` as `@mcp.tool()` functions (the docstring is the description, the signature is the schema). At startup the agent calls `load_mcp_tools()` to fetch them over MCP and binds whatever it receives to the LLM — this plumbing never names a tool or defines a schema, so a new tool is discovered and callable with no change to that code. (The system prompt does keep a separate tool catalogue for cross-tool sequencing and role rules; that prose would need updating for a new tool.)
 
 **Why MCP here:**
 - **Separation of concerns** — tool definitions, SQL queries, and business logic live in `mcp_server/`, not in the agent. The agent is a pure orchestrator.
@@ -168,16 +174,64 @@ Redis stores **conversation history only** — all message turns per `conv:{conv
 
 **Redis vs PostgreSQL trade-off:** Conversation turns are also written to `conversation_turns` in Postgres for durability and audit. Redis is the fast read path — the agent always reads from Redis during an active session, never from Postgres. If Redis loses a key (TTL expiry or restart), the conversation context is lost for that session, but the durable record in Postgres remains. This is an intentional trade-off: Redis is optimised for the hot path; Postgres is the source of truth.
 
+## Observability
+
+All logs are structured JSON, so they can be shipped to any
+log aggregator and queried by field. A per-request `request_id` is bound to the
+log context and returned in the `X-Request-ID` response
+header, correlating every line emitted while handling a request — including the
+agent's tool logs.
+
+### Tool call logs
+
+The agent's tool node logs every failed tool call as a `tool_error` event with
+the tool name, error type, error detail, and the `conversation_id`
+it ran for. Each chat turn also records which tools were
+invoked (`tools_called`).
+
+### Request and response traces
+
+An HTTP middleware logs every request — method, path, status, level and latency —
+stamped with the `request_id` that ties the response back to its log lines. Because the id is bound to the structlog context, a single
+trace can be reconstructed by filtering logs on one `request_id`.
+
+### Error logs
+
+Crashes are logged as `unhandled_exception` with the error type, message, and
+full stack trace, and the client gets a `500` with the `request_id`. Tool failures are logged as warnings.
+
+### Latency tracking
+
+Every request records `latency_ms` in the middleware. The chat stream goes
+further, breaking out **time-to-first-token (TTFT)**, **inter-token latency
+(TPOT)**, **total_cost_usd** and **total time per turn**.
+
+### Tracing with LangSmith
+
+On top of the structured logs above, plugging in a `LANGSMITH_API_KEY` adds full
+end-to-end trace trees — each LLM call, tool span, and token/latency breakdown.
+
+```bash
+LANGSMITH_API_KEY=ls_your_key_here
+LANGSMITH_TRACING=true
+LANGSMITH_ENDPOINT=https://api.smith.langchain.com
+LANGSMITH_PROJECT=acme-agent
+```
+
+With those set, the LangGraph agent is auto-instrumented — no code changes
+needed. Traces appear in your LangSmith dashboard under the `acme-agent`
+project.
+
 ## Trade-offs
 
 | Decision | Choice | Reason |
 |----------|--------|--------|
-| LLM model | `gpt-4o-mini` via LiteLLM proxy | Cost-efficient for a tool-calling agent; the proxy means switching models requires one config change |
-| MCP transport | Streamable HTTP (not stdio) | stdio works for a single process; HTTP is required for Docker Compose where the agent and MCP server are separate containers |
-| Customer name lookup | Exact match then prefix | Realistic user input rarely matches stored names exactly; prefix fallback handles "Globex" → "Globex Corp" without fuzzy matching complexity |
-| RBAC enforcement | At the MCP tool boundary | Enforcing at the API gateway alone would not protect against a compromised or misbehaving agent; tool-level enforcement is the last line of defence |
+| LLM model | `gpt-4o-mini` via LiteLLM proxy | Cost-efficient for a tool-calling agent. Because the agent talks to the LiteLLM proxy instead of a provider directly, using a different model just means changing a setting — no code changes. Even switching to another provider (like Anthropic) only needs a config edit and an API key. |
+| MCP transport | Streamable HTTP (not stdio) | stdio works when the agent runs the MCP server as a local child process on the same machine; HTTP is required for Docker Compose, where the agent and MCP server are separate containers |
+| RBAC enforcement | Three layers, with the MCP tool boundary as the hard backstop | Defense in depth: the **FastAPI gateway** rejects forbidden requests up front, the **system prompt** tells the agent not to attempt tools its role can't use, and the **MCP tool** checks the role on every call. The prompt is only a soft nudge — an LLM can be jailbroken or ignore it — so the gateway and tool checks are the real enforcement, and the tool check is the last line of defence that holds even if the other two fail. |
 | Duplicate write prevention | `parallel_tool_calls=False` + DB idempotency constraint | LLMs can emit duplicate tool calls in a single turn; disabling parallel calls prevents this at the LLM layer, and the DB constraint is the safety net |
 | Conversation memory | Redis (active session) + Postgres (durable) | Redis gives sub-millisecond reads for the hot path; Postgres ensures history survives restarts and is available for audit |
+| Known-identifier reuse | Rebuild resolved UUIDs from the `agent_actions` log and inject them into the prompt | Tools need UUIDs but users speak in names; replaying already-resolved IDs stops the agent re-resolving or guessing them. It's a prompt-level nudge (not enforced), and it's scoped to the most recently looked-up customer so the agent can't mix up IDs across customers |
 | Redis memory cap | None set (dev only) | No memory limit or eviction policy — production would need both |
 | Streaming | SSE-formatted over `POST` | The native browser `EventSource` API only supports `GET`, so the UI uses `fetch` + `ReadableStream` instead. This means no automatic reconnection if the stream drops |
 
@@ -191,15 +245,6 @@ See `.env.example` for all variables. Key ones:
 | `LITELLM_MODEL`       | Model name passed to LiteLLM (default: `gpt-4o-mini`) |
 | `LANGSMITH_API_KEY`   | Optional — enables LangSmith tracing             |
 | `LANGSMITH_TRACING`   | Set to `true` to enable tracing                  |
-
-## Tests
-
-```bash
-python tests/test_api.py
-python tests/test_agent.py
-python tests/test_auth.py
-python tests/test_mcp.py
-```
 
 ## Eval
 

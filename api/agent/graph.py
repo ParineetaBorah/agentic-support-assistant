@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import httpx
 import structlog
 from langchain_core.messages import AIMessage, SystemMessage, ToolMessage
 from langchain_core.tools import BaseTool
@@ -11,6 +10,7 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
 from agent.errors import parse_tool_error
+from agent.pricing import compute_cost_usd
 from core.config import settings
 from core.resilience import LLM_MAX_RETRIES, LLM_TIMEOUT
 from models.agent import AgentState, ToolErrorPayload
@@ -181,38 +181,14 @@ def _format_tool_error(payload: ToolErrorPayload) -> str:
     return f"{prefix}: {payload.detail}"
 
 
-class _CostCapture:
-    """Captures the LiteLLM proxy's per-call cost from response headers.
-
-    langchain_openai does not surface response headers on the returned
-    AIMessage, so an httpx response hook stashes the
-    `x-litellm-response-cost` header here for the agent node to read
-    immediately after each `ainvoke`.
-    """
-
-    def __init__(self) -> None:
-        self.last_cost = 0.0
-
-    async def hook(self, response: httpx.Response) -> None:
-        """Record the response cost header from a LiteLLM proxy response."""
-        cost = response.headers.get("x-litellm-response-cost")
-        if cost is not None:
-            self.last_cost = float(cost)
-
-
 def build_graph(tools: list[BaseTool]) -> CompiledStateGraph:
     """Compile the support agent graph bound to the given MCP tools."""
-    cost_capture = _CostCapture()
     llm = ChatOpenAI(
         model=settings.litellm_model,
         api_key=settings.litellm_api_key or "not-needed",
         base_url=settings.litellm_url,
         timeout=LLM_TIMEOUT,
         max_retries=LLM_MAX_RETRIES,
-        http_async_client=httpx.AsyncClient(
-            timeout=LLM_TIMEOUT,
-            event_hooks={"response": [cost_capture.hook]},
-        ),
     )
     llm_with_tools = llm.bind_tools(tools, parallel_tool_calls=False)
     tools_by_name = {tool.name: tool for tool in tools}
@@ -228,12 +204,17 @@ def build_graph(tools: list[BaseTool]) -> CompiledStateGraph:
         )
 
         usage = response.usage_metadata or {}
+        input_tokens = usage.get("input_tokens", 0)
+        output_tokens = usage.get("output_tokens", 0)
+        cached_input_tokens = (usage.get("input_token_details") or {}).get("cache_read", 0)
+        model_name = response.response_metadata.get("model_name") or state["model_used"]
         update: dict = {
             "messages": [response],
-            "total_prompt_tokens": state["total_prompt_tokens"] + usage.get("input_tokens", 0),
-            "total_completion_tokens": state["total_completion_tokens"] + usage.get("output_tokens", 0),
-            "total_cost_usd": state["total_cost_usd"] + cost_capture.last_cost,
-            "model_used": response.response_metadata.get("model_name") or state["model_used"],
+            "total_prompt_tokens": state["total_prompt_tokens"] + input_tokens,
+            "total_completion_tokens": state["total_completion_tokens"] + output_tokens,
+            "total_cost_usd": state["total_cost_usd"]
+            + compute_cost_usd(model_name, input_tokens, output_tokens, cached_input_tokens),
+            "model_used": model_name,
         }
         if not response.tool_calls:
             update["final_response"] = response.content or NO_GROUNDING_RESPONSE

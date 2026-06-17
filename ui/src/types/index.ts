@@ -26,6 +26,7 @@ export interface ConversationTurn {
   role: string;
   content: string;
   created_at: string;
+  tools_called: string[];
 }
 
 export interface ConversationHistory {
@@ -35,7 +36,6 @@ export interface ConversationHistory {
 
 export interface ConversationSummary {
   id: string;
-  customer_name: string | null;
   started_at: string;
   last_turn_at: string;
   turn_count: number;

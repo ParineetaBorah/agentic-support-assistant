@@ -86,7 +86,7 @@ TEST_CASES: list[dict] = [
         "id": "Q9",
         "question": "What next action do you recommend for Globex's production database issue?",
         "user": "carol",
-        "expected_tool_sequence": ["get_customer_profile", "create_escalation_summary"],
+        "expected_tool_sequence": ["get_customer_profile", "get_open_issues", "create_escalation_summary"],
         "expected_grounded": True,
         "expected_outcome": "propose_then_confirm",
         "judge_reasonableness": True,

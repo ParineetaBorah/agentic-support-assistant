@@ -21,7 +21,7 @@ from pathlib import Path
 import httpx
 from dotenv import load_dotenv
 
-load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+load_dotenv(Path(__file__).resolve().parent.parent.parent / ".env")
 
 API_URL = os.environ.get("API_URL", "http://localhost:8000")
 KEYCLOAK_URL = os.environ.get("KEYCLOAK_URL", "http://localhost:8080")

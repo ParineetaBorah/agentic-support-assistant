@@ -24,7 +24,6 @@ async def read_conversations(
     return [
         ConversationSummary(
             id=str(row["id"]),
-            customer_name=row["customer_name"],
             started_at=row["started_at"],
             last_turn_at=row["last_turn_at"],
             turn_count=row["turn_count"],
@@ -49,7 +48,12 @@ async def read_conversation_history(
     return ConversationHistoryOut(
         conversation_id=conversation_id,
         turns=[
-            ConversationTurnOut(role=turn["role"], content=turn["content"], created_at=turn["created_at"])
+            ConversationTurnOut(
+                role=turn["role"],
+                content=turn["content"],
+                created_at=turn["created_at"],
+                tools_called=turn["tools_called"],
+            )
             for turn in turns
         ],
     )

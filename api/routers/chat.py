@@ -279,6 +279,7 @@ async def post_chat_stream(
             "chat_stream",
             conversation_id=conversation_id,
             token_count=token_count,
+            total_cost_usd=round(total_cost_usd, 6),
             ttft_ms=round(ttft_ms, 2) if ttft_ms is not None else None,
             tpot_ms=round(tpot_ms, 2) if tpot_ms is not None else None,
             total_ms=round(total_ms, 2),

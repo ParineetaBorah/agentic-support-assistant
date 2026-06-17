@@ -15,7 +15,7 @@ import httpx
 from dotenv import load_dotenv
 from jose import jwt
 
-load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+load_dotenv(Path(__file__).resolve().parent.parent.parent / ".env")
 
 KEYCLOAK_URL = os.environ.get("KEYCLOAK_URL", "http://localhost:8080")
 KEYCLOAK_REALM = os.environ.get("KEYCLOAK_REALM", "acme")
@@ -51,7 +51,7 @@ def fetch_access_token(username: str, password: str) -> str:
 
 def run() -> None:
     """Log in as alice, bob, and carol and verify their /auth/me role."""
-    api_dir = Path(__file__).resolve().parent.parent / "api"
+    api_dir = Path(__file__).resolve().parent.parent.parent / "api"
     sys.path.insert(0, str(api_dir))
 
     from fastapi.testclient import TestClient

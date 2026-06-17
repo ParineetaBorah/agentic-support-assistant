@@ -10,16 +10,16 @@ A brief account of how AI tools were used during the development of this project
 ## How the work was divided
 
 ### Delegated to AI (with review)
-- Boilerplate and scaffolding: project structure, Dockerfiles, docker-compose.yml, nginx config, requirements files.
+- Boilerplate and scaffolding: project structure, Dockerfiles, docker-compose.yml, requirements files.
 - Database layer: Alembic migration files and the seed script, generated from a schema I specified.
 - Repetitive, well-defined code: Pydantic models, FastAPI routers following an established pattern, the React UI components.
 - Test scripts: standalone test harnesses for auth, MCP tools, and the agent.
 
 ### Decided by me, implemented with AI assistance
 - **Architecture**: the four-layer separation, the choice to put RBAC enforcement at the tool level (not just the API gateway), and the decision to keep the MCP server as a separate HTTP service rather than bundling it.
-- **Key design trade-offs**: psycopg2 vs asyncpg per component, Docker Postgres over Supabase, pip over Poetry, exact-then-prefix customer matching, reusing `validation_error` for ambiguity rather than adding a new error type.
-- **The system prompt**: I drafted the tool catalogue, workflow chain, intent detection, and propose-then-confirm rules myself, then refined them with AI feedback. I can speak to every line.
-- **Resilience and observability strategy**: which patterns to apply (idempotent writes, timeouts, retries) and which to defer (circuit breakers, MCP retry) and why.
+- **Key design trade-offs**: Docker Postgres over Supabase, pip over Poetry, what to keep in redis memory layer over PostGres, using LiteLLM.
+- **The system prompt**: I wrote the tool catalogue, workflow chain, intent detection, and propose-then-confirm rules myself, then used AI feedback to tighten them.
+- **Resilience and observability strategy**: which patterns to apply (idempotent writes, timeouts, retries) and which to defer (circuit breakers, fallback strategy) and why.
 
 ### Reviewed line-by-line, never blindly accepted
 - All authentication and authorization code: JWT validation, RBAC role checks. Security-critical, so I read and understood every line.
@@ -29,18 +29,19 @@ A brief account of how AI tools were used during the development of this project
 ## Notable AI-caught issues
 
 Several real bugs were surfaced during AI-assisted development that I then reviewed and fixed:
-- The Keycloak audience-mapper mismatch that would have caused every token to fail validation.
+
 - The MCP stdio-vs-HTTP transport mismatch that broke tool calling across Docker containers.
 - The duplicate-write bug, caught by the eval harness, which led to the `parallel_tool_calls` and idempotency fixes.
-- The fuzzy customer-name matching gap (Q3/Q5 eval failures) on realistic phrasing like "Globex" instead of "Globex Corp".
+- The fuzzy customer-name matching gap on realistic phrasing like "Globex" instead of "Globex Corp".
+- The known identifier reuse gap. The agent kept re-fetching the same customer and issue IDs it had already looked up, or guessing them. I fixed it by pulling the resolved UUIDs from the `agent_actions` log into a KNOWN IDENTIFIERS prompt block, scoped to the most recent customer, so it can act directly instead of resolving everything again.
 
 ## What I would not delegate to AI on a real engagement
 
-- Final review of security-critical code (auth, RBAC, secrets handling) — always read and understood myself.
-- Architectural decisions and trade-offs — AI is a sounding board, not a decision-maker.
+- Final review of security-critical code (auth, RBAC, secrets handling).
+- Architectural decisions and trade-offs.
 - Anything that writes data or has side effects, without understanding exactly what it does.
 - Validating that eval results actually reflect agent quality, rather than trusting a green test run.
 
 ## Reflection
 
-AI tools accelerated the mechanical parts of the build significantly — scaffolding, migrations, boilerplate routers — freeing time for the parts that needed judgment: architecture, the system prompt, eval design, and security review. The most valuable pattern was using a separate AI instance as an architectural reviewer to pressure-test decisions before implementing them, rather than letting the implementation tool make design choices by default. Every design decision in this project was one I made and can defend, even where AI suggested or implemented it.
+AI tools took a lot of the mechanical work off my plate, things like scaffolding, migrations, and boilerplate routers. That freed up time for the parts that actually needed judgment: the architecture, the system prompt, eval design, and security review.
